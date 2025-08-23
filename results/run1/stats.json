@@ -1,0 +1,8 @@
+{
+  "video": "/Users/timesnewronan/shotTracker/data/raw/game1.mp4",
+  "out": "/Users/timesnewronan/shotTracker/results/run1",
+  "overlay": true,
+  "bootstrap_frames": 3,
+  "created_at": "2025-08-23T15:06:36",
+  "version": 1
+}

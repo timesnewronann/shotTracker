@@ -40,14 +40,25 @@ def detect(video_path, out_path, overlay, bootstrap_frames):
     print(f"[detect] overlays enabled: {overlay}")
     print(f"[detect] writing outputs to: {out_path}")
 
-    # artifact write
+    # warm-up phase
+    for i in range(bootstrap_frames):
+        print(f"[warmup] frame {i}")
 
+    # main loop to simulate some frames
+    frames_processed = 0
+    for i in range(5):
+        print(f"[process] frame {i}")
+        if overlay:
+            print(f"[overlay] drew annotations on frame {i}")
+        frames_processed += 1
+
+    # artifact write
     out_dir = Path(out_path)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     stats = {
-        "video": str(video_path),
-        "out": str(out_dir.resolve),
+        "video": str(Path(video_path).resolve()),
+        "out": str(out_dir.resolve()),
         "overlay": bool(overlay),
         "bootstrap_frames": int(bootstrap_frames),
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -74,7 +85,11 @@ def main():
         f"Plan: video={args.video}, out={args.out}, overlay={args.overlay}, bootstrap_frames={args.bootstrap_frames}")
 
     if args.dry_run:
-        print("[dry-run] Nothing executed.")
+        print("[dry-run] Plan:")
+        print(f"  video={args.video}")
+        print(f"  out={args.out}")
+        print(f"  overlay={args.overlay}")
+        print(f"  bootstrap_frames={args.bootstrap_frames}")
         return
 
     # Only run detect if not dry-run
