@@ -30,6 +30,14 @@ def get_parser():
                         help="How many initial frames you'll use to \"warm up\" trackers/estimators. Validate that it's >= 1.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the plan and exit without running the pipeline.")
+    parser.add_argument(
+        "--max-frames", type=int, default=100, metavar="N", help="Maximum number of frames to process after warm-up.")
+    parser.add_argument("--frame-stride", type=int, default=1, metavar="N",
+                        help="Process every Nth frame (1 = every frame).")
+    parser.add_argument("--overlay-video", action="store_true",
+                        help="Write an annotated out/overlay.mp4.")
+    parser.add_argument("--write-frames", action="store_true",
+                        help="Write sampled frames as images to out/frames/.")
 
     return parser
 
