@@ -1,6 +1,6 @@
-# 🏀 ShotTracker — From QA to Software Engineer: Project Roadmap
+# 🏀 ShotTracker — Project Roadmap
 
-**Last Updated:** 2025-08-11 (Local Time)
+**Last Updated:** 2025-08-30 (Local Time)
 
 ---
 
