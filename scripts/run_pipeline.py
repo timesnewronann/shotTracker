@@ -25,7 +25,7 @@ def get_parser():
     parser.add_argument("--video", type=str, required=True, metavar="PATH",
                         help="Path to an input video like data/raw/game1.mp4")
     parser.add_argument("--out", type=str, required=True, metavar="PATH",
-                        help="File or directory where artifacts go (e.g., data/processed/ or results/game1/)")
+                        help="Output directory where artifacts will be written (e.g., data/processed/ or results/game1/)")
     parser.add_argument(
         "--overlay", action="store_true", help="Draw visual annotations(boxes,lines) onto frames.")
     parser.add_argument("--bootstrap-frames", type=int, default=30, metavar="N",
@@ -49,13 +49,13 @@ def get_parser():
 
 
 # Game loop - opens the game film, warms up subsystems, picks how often to sample plays, iterates through frames, draws visuals, and writes a box score at the end
-def detect(video_path, out_path, overlay, bootstrap_frames, frame_stride, max_frames, every_seconds, max_seconds):
+def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_frames, every_seconds, max_seconds, dry_run):
     """
     Run a single pass over a video with a controllable sampling policy.
 
     Args:
         video_path (str|Path): Input video file.
-        out_path (str|Path): Directory for artifacts (stats.json, frames, overlays).
+        out_dir (str|Path): Directory for artifacts (stats.json, frames, overlays).
         overlay (bool): If True, draw visual annnotations on processed frames.
         bootstrap_frames (int): Number of initial frames consumed before stats are collected.
         frame_stride (int): Process every Nth frame (default policy)
@@ -73,7 +73,7 @@ def detect(video_path, out_path, overlay, bootstrap_frames, frame_stride, max_fr
     print(f"[detect] opening {video_path}")
     print(f"[detect] warm-up frames: {bootstrap_frames}")
     print(f"[detect] overlays enabled: {overlay}")
-    print(f"[detect] writing outputs to: {out_path}")
+    print(f"[detect] writing outputs to: {out_dir}")
 
     # Real video I/O: open and validate - will add live webcam and iphone camera capture later
     cap = cv.VideoCapture(str(video_path))
@@ -126,30 +126,39 @@ def detect(video_path, out_path, overlay, bootstrap_frames, frame_stride, max_fr
 
     print(f"[detect] total frames processed:", frames_processed)
 
-    # Release resources
-    cap.release()
-
     # artifact write
-    out_dir = Path(out_path)
+    out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     stats = {
-        "video": str(Path(video_path).resolve()),
-        "out": str(out_dir.resolve()),
+        "video": str(Path(video_path).resolve()),  # absolute path string
+        "out": str(out_dir.resolve()),  # the out_dir
+        "width": int(width),  # video width
+        "height": int(height),  # video height
+        "fps": float(fps),
+        "total_frames_meta": int(cap.get(cv.CAP_PROP_FRAME_COUNT) or -1),
         "overlay": bool(overlay),
-        "bootstrap_frames": int(bootstrap_frames),
+        "bootstrap_frames_requested": int(bootstrap_frames),
+        "bootstrap_frames_read": int(actual_warmup),  # bootstrap_frames_read = actual_warmup
         "frame_stride": int(frame_stride),
         "max_frames": int(max_frames),
         "frames_processed": int(frames_processed),
+        "dry_run": bool(dry_run),
+        "every_seconds": float(every_seconds) if every_seconds is not None else None,
+        "max_seconds": float(max_seconds) if max_seconds is not None else None,
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "version": 1,
-        "every_seconds": int(every_seconds),
-        "max_seconds": int(max_seconds)
+        "version": 1
     }
 
-    stats_path = out_dir / "stats.json"
-    with stats_path.open("w", encoding="utf-8") as f:
-        json.dump(stats, f, indent=2)
+    # Release resources
+    cap.release()
+
+    stats_path = out_dir / "stats.jsonl"
+    # with stats_path.open("w", encoding="utf-8") as f:  # append mode
+    #     json.dump(stats, f, indent=2)
+    with stats_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(stats) + "\n")
+
     print(f"[detect] wrote {stats_path}")
 
 
@@ -177,13 +186,13 @@ def main():
         print(f"  out={args.out}")
         print(f"  overlay={args.overlay}")
         print(f"  bootstrap_frames={args.bootstrap_frames}")
-        print(f"  frame_stride={args.max_frames}")
+        print(f"  frame_stride={args.frame_stride}")
         print(f"  max_frames={args.max_frames}")
         return
 
     # Only run detect if not dry-run
     detect(args.video, args.out, args.overlay, args.bootstrap_frames,
-           args.frame_stride, args.max_frames, args.every_seconds, args.max_seconds,)
+           args.frame_stride, args.max_frames, args.every_seconds, args.max_seconds, args.dry_run)
 
 
 if __name__ == "__main__":

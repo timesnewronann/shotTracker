@@ -1,10 +1,10 @@
-# 🏀 ShotTracker — Project Roadmap
+# ShotTracker — Project Roadmap
 
 **Last Updated:** 2025-08-30 (Local Time)
 
 ---
 
-## 📖 Introduction
+## Introduction
 
 This roadmap documents the full vision, technical plan, and reasoning behind the **ShotTracker** project.  
 It is both a development guide and a learning tool, showing _what_ we will build and _why_ we build it this way.  
@@ -12,34 +12,34 @@ Use it to track progress, onboard collaborators, and guide decision-making as we
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-1. [🎯 Vision](#vision)
-2. [🧭 Guiding Principles](#guiding-principles)
-   - [💡 Why MVP First](#why-mvp-first)
-3. [📅 High-Level Phases & Milestones](#high-level-phases--milestones)
-4. [🏆 Target MVP v0.1](#target-mvp-v01-end-of-week-2)
-5. [⚙️ Tech Stack (initial)](#tech-stack-initial)
-6. [📦 Repository Structure](#repository-structure)
-   - [💡 Why This Repository Structure](#why-this-repository-structure)
-7. [📑 Data Schema (JSONL for each session)](#data-schema-jsonl-for-each-session)
-8. [🔄 End-to-End Pipeline v0.1 (CLI)](#end-to-end-pipeline-v01-cli)
-9. [🧮 Algorithms (v0.1)](#algorithms-v01)
-10. [🧪 Testing Strategy](#testing-strategy)
-11. [📆 Week-1 Plan (Hands-on)](#week-1-plan-hands-on)
+1. [ Vision](#vision)
+2. [ Guiding Principles](#guiding-principles)
+   - [ Why MVP First](#why-mvp-first)
+3. [ High-Level Phases & Milestones](#high-level-phases--milestones)
+4. [ Target MVP v0.1](#target-mvp-v01-end-of-week-2)
+5. [ Tech Stack (initial)](#tech-stack-initial)
+6. [ Repository Structure](#repository-structure)
+   - [ Why This Repository Structure](#why-this-repository-structure)
+7. [ Data Schema (JSONL for each session)](#data-schema-jsonl-for-each-session)
+8. [ End-to-End Pipeline v0.1 (CLI)](#end-to-end-pipeline-v01-cli)
+9. [ Algorithms (v0.1)](#algorithms-v01)
+10. [ Testing Strategy](#testing-strategy)
+11. [ Week-1 Plan (Hands-on)](#week-1-plan-hands-on)
 
-- [💡 Why We Use uv](#why-we-use-uv)
+- [ Why We Use uv](#why-we-use-uv)
 
-12. [🌐 Documentation Website (parallel, 30–60 min)](#documentation-website-parallel-30–60-min)
-13. [🗂 Issue Board (starter backlog)](#issue-board-starter-backlog)
-14. [⏭ Next Steps After Week-1](#next-steps-after-week-1)
-15. [✅ Acceptance Criteria Templates](#acceptance-criteria-templates)
-16. [📝 Notes](#notes)
-17. [📜 Change Log](#change-log)
+12. [ Documentation Website (parallel, 30–60 min)](#documentation-website-parallel-30–60-min)
+13. [ Issue Board (starter backlog)](#issue-board-starter-backlog)
+14. [ Next Steps After Week-1](#next-steps-after-week-1)
+15. [ Acceptance Criteria Templates](#acceptance-criteria-templates)
+16. [ Notes](#notes)
+17. [ Change Log](#change-log)
 
 ---
 
-## 🎯 Vision
+## Vision
 
 Build a basketball shot tracking system that logs attempts, classifies make/miss, estimates shot trajectory (arc, entry angle), and correlates body mechanics with outcomes to generate coaching insights. Ship as:
 
@@ -47,7 +47,7 @@ Build a basketball shot tracking system that logs attempts, classifies make/miss
 
 ---
 
-## 🧭 Guiding Principles
+## Guiding Principles
 
 - **MVP first, iterate fast.** MVP means Minimum Viable Product — build the smallest, simplest version that proves the concept works, then quickly improve it based on feedback. Ship narrow, prove value, then add complexity.
 - **Reproducibility & tests.** Every feature has a scriptable demo and tests.
@@ -56,13 +56,13 @@ Build a basketball shot tracking system that logs attempts, classifies make/miss
 
 ---
 
-### 💡 Why MVP First
+### Why MVP First
 
 The **Minimum Viable Product** approach keeps scope small, feedback fast, and risk low. By proving the core loop early—detecting ball & rim, segmenting attempts, and classifying make/miss—we validate that the problem is solvable in our constraints before investing in advanced features. This sequencing prevents wasted work, guides data collection toward what actually matters, and makes each subsequent layer (trajectory, pose, mobile) sit on a solid, measured foundation.
 
 ---
 
-## 📅 High-Level Phases & Milestones
+## High-Level Phases & Milestones
 
 **Phase 0 — Product Definition (Day 1–2)**
 
@@ -110,14 +110,14 @@ The **Minimum Viable Product** approach keeps scope small, feedback fast, and ri
 
 ---
 
-## 🏆 Target MVP v0.1 (End of Week 2)
+## Target MVP v0.1 (End of Week 2)
 
-> **🎯 MVP Goal:** Desktop app/script: load a video → detect ball/rim → segment attempts → classify make/miss → write JSONL + MP4 with overlays.  
+> ** MVP Goal:** Desktop app/script: load a video → detect ball/rim → segment attempts → classify make/miss → write JSONL + MP4 with overlays.  
 > **Target Accuracy:** ≥90% make/miss on your test clips.
 
 ---
 
-## ⚙️ Tech Stack (initial)
+## Tech Stack (initial)
 
 - **Language:** Python 3.10
 - **CV/ML:** OpenCV, ultralytics/YOLO for ball/rim, a lightweight pose model later (e.g., YOLO-Pose/Mediapipe alternative)
@@ -129,4 +129,4 @@ The **Minimum Viable Product** approach keeps scope small, feedback fast, and ri
 
 ---
 
-## 📦 Repository Structure
+## Repository Structure
