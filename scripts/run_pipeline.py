@@ -16,7 +16,6 @@ import os
 import sys
 import cv2 as cv
 from pathlib import Path
-import json
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
@@ -24,6 +23,7 @@ from typing import List, Tuple, Optional
 # parses user intent (which video? where to put results? overlay or not? how often to sample?)
 
 # ============= CLI ============
+# defines CLI and validates user intent
 
 
 def get_parser():
@@ -34,13 +34,14 @@ def get_parser():
                         help="Path to an input video like data/raw/game1.mp4")
     parser.add_argument("--out", type=str, required=True, metavar="DIR",
                         help="Output directory where artifacts will be written (e.g., data/processed/ or results/game1/)")
-    parser.add_argument(
-        "--overlay", action="store_true", help="Draw visual annotations(boxes,lines) onto frames.")
+    parser.add_argument("--overlay", action="store_true",
+                        help="Draw visual annotations(boxes,lines) onto frames.")
     parser.add_argument("--save-video", action="store_true",
                         help="Save an overlay .mp4 to the output directory.")
+    parser.add_argument("--overlay-video", action="store_true",
+                        help="Write an annotated out/overlay.mp4.")
     parser.add_argument("--save-json", action="store_true", default=True,
                         help="Save run.json and shots.json")
-    parser.add_argument("--skip-rate", type=int, default=1, help="Process every Nth frame (>=1).")
     parser.add_argument("--bootstrap-frames", type=int, default=30, metavar="N",
                         help="How many initial frames you'll use to \"warm up\" trackers/estimators. Validate that it's >= 1.")
     parser.add_argument("--model", type=str, default=None,
@@ -51,8 +52,6 @@ def get_parser():
                         help="Maximum number of frames to process after warm-up.")
     parser.add_argument("--frame-stride", type=int, default=1, metavar="N",
                         help="Process every Nth frame (1 = every frame).")
-    parser.add_argument("--overlay-video", action="store_true",
-                        help="Write an annotated out/overlay.mp4.")
     parser.add_argument("--write-frames", action="store_true",
                         help="Write sampled frames as images to out/frames/.")
     parser.add_argument("--every-seconds", type=float, metavar="S",
@@ -91,6 +90,7 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     print(f"[detect] writing outputs to: {out_dir}")
 
     # Real video I/O: open and validate - will add live webcam and iphone camera capture later
+    # Game clock
     cap = cv.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise SystemExit(f"[error] cannot open video: {video_path}")
@@ -103,6 +103,25 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
 
     print(f"[meta] width={width} height={height} fps={fps:.2f}")
 
+    # Compute stride from --every-seconds
+    if every_seconds is not None:
+        # Keep around 1 frame every S seconds => Stride is about fps * S
+        frame_stride = max(1, int(round(fps * every_seconds)))
+        print(f"[Sampling] every ~{every_seconds}s -> frame_stride={frame_stride}")
+
+    # -- Enforce --max-seconds as a processed-frame cap --
+    cap_by_time = None
+    if max_seconds is not None:
+        # Only "process" every frame_stride-th frame, convert seconds to a cap
+        # processed_cap ~= (fps*seconds) / frame_stride
+        cap_by_time = max(1, int(math.floor((fps * max_seconds) / max(1, frame_stride))))
+        print(f"[Limit] max_seconds={max_seconds:.2f}s -> processed cap={cap_by_time}")
+
+    effective_cap = min(max_frames, cap_by_time) if cap_by_time else max_frames
+    print(f"[Limit] effective processed frame cap={effective_cap} (max_frames={max_frames})")
+
+    # Need fps and the final stride to translate seconds-> "How many processed frames"
+
     # warm-up: consume frames so capture position advances realistically
     actual_warmup = 0
     for _ in range(bootstrap_frames):
@@ -114,6 +133,7 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     print(f"[warmup] consumed {actual_warmup} frames")
 
     # strided, bounded processing loop
+    # Keep only every Nth frame but still move the capture forward so time moves forward
     frames_processed = 0  # only counts the ones we keep
     frame_index = 0  # counts all frames we've read (after warm-up)
 
@@ -145,6 +165,7 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Telemetry Write
     stats = {
         "video": str(Path(video_path).resolve()),  # absolute path string
         "out": str(out_dir.resolve()),  # the out_dir
@@ -177,6 +198,7 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     print(f"[detect] wrote {stats_path}")
 
 
+# Validates args, supports --dry-run and calls detect()
 def main():
     parser = get_parser()
     args = parser.parse_args()
