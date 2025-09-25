@@ -22,6 +22,52 @@ from typing import List, Tuple, Optional
 
 # parses user intent (which video? where to put results? overlay or not? how often to sample?)
 
+
+def ensure_dir(p: Path):
+    p.mkdir(parents=True, exist_ok=True)
+
+
+def parse_roi(s: str) -> Tuple[int, int, int, int]:
+    x1, y1, x2, y2 = [int(v) for v in s.split(",")]
+    return x1, y1, x2, y2
+
+
+def detect_ball_centers_stub(frame) -> List[Tuple[int, int]]:
+    """
+    Very barebones find the "ball" circle finder using Hough. This is just to visualize motion.
+    Replace with YOLO later.
+    """
+    gray = cv.cvtColor(frame, cv.COLOR_BG2GRAY)
+    gray = cv.GaussianBlur(gray, (5, 5), 0)
+    circles = cv.HoughCircles(gray, cv.HOUGH_GRADIENT, dp=1.2, minDist=30,
+                              param1=60, param2=30, minRadius=4, maxRadius=22)
+
+    centers = []
+    if circles is not None:
+        for c in circles[0, :].astype(int):
+            x, y, r = int(c[0]), int(c[1]), int(c[2])
+            centers.append((x, y))
+
+    return centers
+
+
+def within_roi(x: int, y: int, roi: Tuple[int, int, int, int]) -> bool:
+    x1, y1, x2, y2 = roi
+    return x1 <= x <= x2 and y1 <= y <= y2
+
+
+def draw_rim_roi(img, roi):
+    x1, y1, x2, y2 = roi
+    cv.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+
+def draw_path(img, pts: List[Tuple[int, int]], tail: int = 40):
+    pts = pts[-tail:]
+    for i in range(1, len(pts)):
+        x0, y0 = pts[i - 1]
+        x1, y1 = pts[i]
+        cv.line(img, (x0, y0), (x1, y1), (255, 255, 255), 2)
+
 # ============= CLI ============
 # defines CLI and validates user intent
 
@@ -58,6 +104,8 @@ def get_parser():
                         help="Process roughly one frame every S seconds (overrides --frame-stride).")
     parser.add_argument("--max-seconds", type=float, metavar="S",
                         help="Stop after about S seconds of processed video (combined with --max-frames; the smaller cap wins).")
+    parser.add_argument("--rim-roi", type=str, metavar="x1,y1,x2,y2",
+                        help="Manual rim ROI if your detector doesn't output a rim class.")
 
     return parser
 
@@ -88,6 +136,13 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     print(f"[detect] warm-up frames: {bootstrap_frames}")
     print(f"[detect] overlays enabled: {overlay}")
     print(f"[detect] writing outputs to: {out_dir}")
+
+    # pull optional flags from global args
+    global args
+    if 'args' in globals():
+        write_frames = bool(getattr(args, "write_frames", False))
+        if write_frames:
+            ensure_dir(frames_dir)
 
     # Real video I/O: open and validate - will add live webcam and iphone camera capture later
     # Game clock
@@ -122,6 +177,19 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
 
     # Need fps and the final stride to translate seconds-> "How many processed frames"
 
+    # Overlay Video Writer
+    out_dir = Path(out_dir)
+    ensure_dir(out_dir)
+
+    writer = None
+    if overlay and (args.save_video if 'args' in globals() else True):
+        fourcc = cv.VideoWriter_fourcc(*"mp4v")
+        # Keep playback not-too-fast when striding
+        out_fps = max(5.0, fps / max(1, frame_stride))
+        writer = cv.VideoWriter(str(out_dir / "overlay.mp4"), fourcc, out_fps, (width, height))
+
+    frames_dir = out_dir / "frames"
+    write_frames = False  # set through CLI later
     # warm-up: consume frames so capture position advances realistically
     actual_warmup = 0
     for _ in range(bootstrap_frames):
@@ -137,10 +205,9 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     frames_processed = 0  # only counts the ones we keep
     frame_index = 0  # counts all frames we've read (after warm-up)
 
-    stride = frame_stride
     # loop until we've processed enough frames
     # This will call models and accumlators later
-    while frames_processed < max_frames:
+    while frames_processed < effective_cap:
         ret, frame = cap.read()  # try to grab next frame
         if not ret:
             break
@@ -152,6 +219,16 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
             # - trackers
             # - pose estimator
             # - shot/outcome classifier
+            # overlay hook
+            draw = frame
+
+            if overlay:
+                if writer is not None:
+                    writer.write(draw)
+
+            if write_frames:
+                cv.imwrite(str(frames_dir / f"frame_{frame_index:06d}.jpg"), frame)
+
             print(f"[process] frame {frame_index}")
             if overlay:
                 # draw boxes, trails, angles, etc
@@ -179,6 +256,7 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
         "frame_stride": int(frame_stride),
         "max_frames": int(max_frames),
         "frames_processed": int(frames_processed),
+        "effective_cap_processed_frames": int(effective_cap),
         "dry_run": bool(dry_run),
         "every_seconds": float(every_seconds) if every_seconds is not None else None,
         "max_seconds": float(max_seconds) if max_seconds is not None else None,
@@ -196,6 +274,9 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
         f.write(json.dumps(stats) + "\n")
 
     print(f"[detect] wrote {stats_path}")
+
+    if writer is not None:
+        writer.release()
 
 
 # Validates args, supports --dry-run and calls detect()
