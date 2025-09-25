@@ -10,26 +10,41 @@ add --bootstrap-frames (int, default 30)
 return parsed args
 """
 import argparse
+import json
+import math
+import os
+import sys
 import cv2 as cv
 from pathlib import Path
 import json
 from datetime import datetime
+from dataclasses import dataclass, field
+from typing import List, Tuple, Optional
 
 # parses user intent (which video? where to put results? overlay or not? how often to sample?)
+
+# ============= CLI ============
 
 
 def get_parser():
     parser = argparse.ArgumentParser(
-        description="ShotTracker pipeline (skeleton). Example: python scripts/run_pipeline.py --video data/raw/game1.mp4 --out results/run1 --overlay",
+        description="ShotTracker pipeline (MVP). Example: python scripts/run_pipeline.py --video data/raw/game1.mp4 --out results/run1 --overlay",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--video", type=str, required=True, metavar="PATH",
                         help="Path to an input video like data/raw/game1.mp4")
-    parser.add_argument("--out", type=str, required=True, metavar="PATH",
+    parser.add_argument("--out", type=str, required=True, metavar="DIR",
                         help="Output directory where artifacts will be written (e.g., data/processed/ or results/game1/)")
     parser.add_argument(
         "--overlay", action="store_true", help="Draw visual annotations(boxes,lines) onto frames.")
+    parser.add_argument("--save-video", action="store_true",
+                        help="Save an overlay .mp4 to the output directory.")
+    parser.add_argument("--save-json", action="store_true", default=True,
+                        help="Save run.json and shots.json")
+    parser.add_argument("--skip-rate", type=int, default=1, help="Process every Nth frame (>=1).")
     parser.add_argument("--bootstrap-frames", type=int, default=30, metavar="N",
                         help="How many initial frames you'll use to \"warm up\" trackers/estimators. Validate that it's >= 1.")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Path/name of YOLO model. If omitted, stub detector is user.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the plan and exit without running the pipeline.")
     parser.add_argument("--max-frames", type=int, default=100, metavar="N",
