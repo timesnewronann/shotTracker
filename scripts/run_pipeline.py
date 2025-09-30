@@ -22,6 +22,8 @@ from typing import List, Tuple, Optional
 
 # parses user intent (which video? where to put results? overlay or not? how often to sample?)
 
+# ============= HELPER FUNCTIONS ============
+
 
 def ensure_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
@@ -37,7 +39,7 @@ def detect_ball_centers_stub(frame) -> List[Tuple[int, int]]:
     Very barebones find the "ball" circle finder using Hough. This is just to visualize motion.
     Replace with YOLO later.
     """
-    gray = cv.cvtColor(frame, cv.COLOR_BG2GRAY)
+    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
     gray = cv.GaussianBlur(gray, (5, 5), 0)
     circles = cv.HoughCircles(gray, cv.HOUGH_GRADIENT, dp=1.2, minDist=30,
                               param1=60, param2=30, minRadius=4, maxRadius=22)
@@ -84,8 +86,8 @@ def get_parser():
                         help="Draw visual annotations(boxes,lines) onto frames.")
     parser.add_argument("--save-video", action="store_true",
                         help="Save an overlay .mp4 to the output directory.")
-    parser.add_argument("--overlay-video", action="store_true",
-                        help="Write an annotated out/overlay.mp4.")
+    # parser.add_argument("--overlay-video", action="store_true",
+    #                     help="Write an annotated out/overlay.mp4.")
     parser.add_argument("--save-json", action="store_true", default=True,
                         help="Save run.json and shots.json")
     parser.add_argument("--bootstrap-frames", type=int, default=30, metavar="N",
@@ -109,9 +111,11 @@ def get_parser():
 
     return parser
 
-
+# ============= CORE FUNCTION ============
 # Game loop - opens the game film, warms up subsystems, picks how often to sample plays, iterates through frames, draws visuals, and writes a box score at the end
-def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_frames, every_seconds, max_seconds, dry_run):
+
+
+def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_frames, every_seconds, max_seconds, dry_run, save_video, write_frames, rim_roi_arg):
     """
     Run a single pass over a video with a controllable sampling policy.
 
@@ -131,34 +135,26 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
         - Warm-up frames are not counted toward max_frames
         - This function is model-agnostic; plug detectors/trackers/pose in the sampling branch.
     """
-    # logging the plan
+    # -- Logging the plan --
     print(f"[detect] opening {video_path}")
     print(f"[detect] warm-up frames: {bootstrap_frames}")
     print(f"[detect] overlays enabled: {overlay}")
     print(f"[detect] writing outputs to: {out_dir}")
 
-    # pull optional flags from global args
-    global args
-    if 'args' in globals():
-        write_frames = bool(getattr(args, "write_frames", False))
-        if write_frames:
-            ensure_dir(frames_dir)
-
-    # Real video I/O: open and validate - will add live webcam and iphone camera capture later
-    # Game clock
+    # -- Open Video --
     cap = cv.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise SystemExit(f"[error] cannot open video: {video_path}")
 
+    # -- Get the width and height of the video and fps
     width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv.CAP_PROP_FPS) or 0.0
     if fps <= 0.0:
         fps = 30.0  # safe fallback for weird files
-
     print(f"[meta] width={width} height={height} fps={fps:.2f}")
 
-    # Compute stride from --every-seconds
+    # -- Derive Stride from every-seconds (if provided) --
     if every_seconds is not None:
         # Keep around 1 frame every S seconds => Stride is about fps * S
         frame_stride = max(1, int(round(fps * every_seconds)))
@@ -167,29 +163,37 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     # -- Enforce --max-seconds as a processed-frame cap --
     cap_by_time = None
     if max_seconds is not None:
-        # Only "process" every frame_stride-th frame, convert seconds to a cap
-        # processed_cap ~= (fps*seconds) / frame_stride
         cap_by_time = max(1, int(math.floor((fps * max_seconds) / max(1, frame_stride))))
         print(f"[Limit] max_seconds={max_seconds:.2f}s -> processed cap={cap_by_time}")
 
     effective_cap = min(max_frames, cap_by_time) if cap_by_time else max_frames
     print(f"[Limit] effective processed frame cap={effective_cap} (max_frames={max_frames})")
 
-    # Need fps and the final stride to translate seconds-> "How many processed frames"
-
-    # Overlay Video Writer
+    # -- Outputs --
     out_dir = Path(out_dir)
     ensure_dir(out_dir)
 
     writer = None
-    if overlay and (args.save_video if 'args' in globals() else True):
+    if overlay and (save_video if 'args' in globals() else True):
         fourcc = cv.VideoWriter_fourcc(*"mp4v")
         # Keep playback not-too-fast when striding
         out_fps = max(5.0, fps / max(1, frame_stride))
         writer = cv.VideoWriter(str(out_dir / "overlay.mp4"), fourcc, out_fps, (width, height))
 
     frames_dir = out_dir / "frames"
-    write_frames = False  # set through CLI later
+    if write_frames:
+        ensure_dir(frames_dir)  # set through CLI later
+
+    # -- RIM ROI Bootstrap --
+    if rim_roi_arg:
+        rim_roi = parse_roi(rim_roi_arg)
+        print(f"[ROI] Using manual rim ROI: {rim_roi}")
+    else:
+        # default to upper middle band
+        pad = max(20, width // 10)
+        rim_roi = (pad, 0, width - pad, height // 2)
+        print(f"[ROI] Default rim ROI: {rim_roi}")
+
     # warm-up: consume frames so capture position advances realistically
     actual_warmup = 0
     for _ in range(bootstrap_frames):
@@ -199,6 +203,9 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
         # placeholder for tracker initialization
         actual_warmup += 1
     print(f"[warmup] consumed {actual_warmup} frames")
+
+    # -- Processing Loop --
+    recent_centers: List[Tuple[int, int]] = []
 
     # strided, bounded processing loop
     # Keep only every Nth frame but still move the capture forward so time moves forward
@@ -220,9 +227,30 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
             # - pose estimator
             # - shot/outcome classifier
             # overlay hook
-            draw = frame
+            # draw = frame
+
+            # --- Ball stub detection + overlays ---
+            centers = detect_ball_centers_stub(frame)
+            # choose the smallest circle or take the first one
+            ball_c = centers[0] if centers else None
+
+            # Track path history
+            # if "recent_centers" not in locals():
+            #     recent_centers = []
 
             if overlay:
+                # draw boxes, trails, angles, etc
+                # print(f"[overlay] drew annotations on frame {frame_index}")
+                draw = frame  # reuse original
+                draw_rim_roi(draw, rim_roi)
+                if ball_c:
+                    cv.circle(draw, ball_c, 6, (0, 0, 255), -1)
+                if recent_centers:
+                    draw_path(draw, recent_centers)
+                cv.putText(draw, f"f={frame_index}", (10, height - 10),
+                           cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+                # write after the overlays
                 if writer is not None:
                     writer.write(draw)
 
@@ -230,17 +258,15 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
                 cv.imwrite(str(frames_dir / f"frame_{frame_index:06d}.jpg"), frame)
 
             print(f"[process] frame {frame_index}")
-            if overlay:
-                # draw boxes, trails, angles, etc
-                print(f"[overlay] drew annotations on frame {frame_index}")
             frames_processed += 1
+
         frame_index += 1
 
     print(f"[detect] total frames processed:", frames_processed)
 
     # artifact write
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # out_dir = Path(out_dir)
+    # out_dir.mkdir(parents=True, exist_ok=True)
 
     # Telemetry Write
     stats = {
@@ -264,9 +290,6 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
         "version": 1
     }
 
-    # Release resources
-    cap.release()
-
     stats_path = out_dir / "stats.jsonl"
     # with stats_path.open("w", encoding="utf-8") as f:  # append mode
     #     json.dump(stats, f, indent=2)
@@ -275,11 +298,13 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
 
     print(f"[detect] wrote {stats_path}")
 
+    # Release resources
+    cap.release()
     if writer is not None:
         writer.release()
 
 
-# Validates args, supports --dry-run and calls detect()
+# ===== MAIN ======
 def main():
     parser = get_parser()
     args = parser.parse_args()
@@ -306,11 +331,14 @@ def main():
         print(f"  bootstrap_frames={args.bootstrap_frames}")
         print(f"  frame_stride={args.frame_stride}")
         print(f"  max_frames={args.max_frames}")
+        print(f"  save_video={args.save_video}")
+        print(f"  write_frames={args.write_frames}")
+        print(f"  rim_roi={args.rim_roi}")
         return
 
     # Only run detect if not dry-run
     detect(args.video, args.out, args.overlay, args.bootstrap_frames,
-           args.frame_stride, args.max_frames, args.every_seconds, args.max_seconds, args.dry_run)
+           args.frame_stride, args.max_frames, args.every_seconds, args.max_seconds, args.dry_run, args.save_video, args.write_frames, args.rim_roi)
 
 
 if __name__ == "__main__":
