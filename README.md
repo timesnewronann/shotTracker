@@ -1,14 +1,13 @@
 # ShotTracker — Project Roadmap
 
-**Last Updated:** 2025-08-30 (Local Time)
+**Last Updated:** 2025-09-29 (Local Time)
 
 ---
 
 ## Introduction
 
 This roadmap documents the full vision, technical plan, and reasoning behind the **ShotTracker** project.  
-It is both a development guide and a learning tool, showing _what_ we will build and _why_ we build it this way.  
-Use it to track progress, onboard collaborators, and guide decision-making as we scale from an MVP prototype to a production-ready mobile application.
+I started this project as a learning tool to improve my SWE abilities, showing _what_ I will build and _why_ I built it this way.
 
 ---
 

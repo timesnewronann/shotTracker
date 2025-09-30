@@ -144,7 +144,7 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     # -- Open Video --
     cap = cv.VideoCapture(str(video_path))
     if not cap.isOpened():
-        raise SystemExit(f"[error] cannot open video: {video_path}")
+        raise RuntimeError(f"Cannot open video: {video_path}")
 
     # -- Get the width and height of the video and fps
     width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
@@ -173,12 +173,16 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     out_dir = Path(out_dir)
     ensure_dir(out_dir)
 
+    # -- WRITE THE OVERLAY VIDEO INTO A FILE --
     writer = None
     if overlay and (save_video if 'args' in globals() else True):
         fourcc = cv.VideoWriter_fourcc(*"mp4v")
         # Keep playback not-too-fast when striding
         out_fps = max(5.0, fps / max(1, frame_stride))
         writer = cv.VideoWriter(str(out_dir / "overlay.mp4"), fourcc, out_fps, (width, height))
+        # Error handling if the writer isn't opened
+        if not writer.isOpened():
+            raise RuntimeError("VideoWriter failed to open (codec/back-end issue).")
 
     frames_dir = out_dir / "frames"
     if write_frames:
