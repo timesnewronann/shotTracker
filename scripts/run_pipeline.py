@@ -144,15 +144,18 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     # -- Open Video --
     cap = cv.VideoCapture(str(video_path))
     if not cap.isOpened():
-        raise RuntimeError(f"Cannot open video: {video_path}")
+        raise RuntimeError(f"[Error] Cannot open video: {video_path}")
 
     # -- Get the width and height of the video and fps
-    width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv.CAP_PROP_FPS) or 0.0
+    width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH)) or 0
+    height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)) or 0
+    fps = cap.get(cv.CAP_PROP_FPS) or 30.0
     if fps <= 0.0:
         fps = 30.0  # safe fallback for weird files
     print(f"[meta] width={width} height={height} fps={fps:.2f}")
+
+    if width == 0 or height == 0:
+        raise RuntimeError("[Error] failed to read video dimensions")
 
     # -- Derive Stride from every-seconds (if provided) --
     if every_seconds is not None:
