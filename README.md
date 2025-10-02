@@ -75,8 +75,7 @@ Build a basketball shot tracking system that logs attempts, classifies make/miss
 
 ## Quick start
 
-```
-bash
+```bash
 # 1) venv (or uv) and deps
 python3.10 -m venv .venv
 source .venv/bin/activate
@@ -184,6 +183,24 @@ The **Minimum Viable Product** approach keeps scope small, feedback fast, and ri
 ---
 
 ## Repository Structure
+
+```bash
+shotTracker/
+├── scripts/
+│   └── run_pipeline.py          # CLI entrypoint (decode/sample/overlay/stats)
+├── tools/
+│   └── pick_roi.py              # (optional) quick ROI corner picker
+├── data/
+│   └── raw/                     # source videos (git-ignored)
+├── results/
+│   └── <run>/                   # run artifacts (overlay.mp4, stats.jsonl, shots.csv)
+├── models/                      # YOLO weights etc. (git-ignored)
+├── tests/                       # unit tests per stage (WIP)
+├── requirements.txt
+└── README.md
+
+
+```
 
 ```
 
