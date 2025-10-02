@@ -57,7 +57,7 @@ Build a basketball shot tracking system that logs attempts, classifies make/miss
 
 ---
 
-## What's working today (10/1/2025)
+## What's working today
 
 - **CLI** with argparse and guardriles
   - `--video`, `--out`, `--overlay`, `--save-video`
