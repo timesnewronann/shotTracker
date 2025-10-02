@@ -44,11 +44,55 @@ Build a basketball shot tracking system that logs attempts, classifies make/miss
 
 1. Desktop prototype → 2) Web dashboard → 3) Mobile app (on-device or edge inference).
 
+---
+
 ## Why this Design?
 
 - **Reproducible Runs**: A single CLI (`run_pipeline.py`) with explicit flags produces the same outputs for the same inputs. This makes different model iterations and bug reproductions straightforward.
 - **Testable Stages**: Decode -> Sample -> Detect -> Event Logic -> Overlay -> Write Artificats. Each stage has clear inputs/outputs, so we can unit test logic without video I/O.
-- **Observable by Default**:
+- **Observable by Default**: Every run writes a `stats.jsonl` and an optional overlay.mp4.
+
+---
+
+## What's working today (10/1/2025)
+
+- **CLI** with argparse and guardriles
+  - `--video`, `--out`, `--overlay`, `--save-video`
+  - Sampling controls: `--every-seconds`, `--frame-stride`, `--bootstrap-frames`
+  - Throughput caps: `--max-seconds`, `--max-frames`
+  - Rim ROI: default wide box or manual `--rim-roi x1,y1,x2,y2`
+- **Video I/O Pipeline**
+  - Robust open checks, metadate probe (width/height/fps)
+  - Overlay rendering (HUD text + ROI rectangle), MP4 writer (mp4v)
+- **Run Artifacts**
+  - `results/<run>/overlay.mp4` (if `--overlay --save-video`)
+  - `results/<run>/stats.jsonl` (1 line per run)
+
+---
+
+## Quick start
+
+```
+bash
+# 1) venv (or uv) and deps
+python3.10 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt   # opencv-python, numpy, ultralytics (soon), etc.
+```
+
+# 2) run a short clip with overlays
+
+```
+
+python scripts/run_pipeline.py \
+ --video data/raw/trimmedJumper.mp4 \
+ --out results/run_review \
+ --overlay --save-video \
+ --every-seconds 0.2 \
+ --bootstrap-frames 30 \
+ --max-seconds 12
+
+```
 
 ---
 
@@ -119,7 +163,7 @@ The **Minimum Viable Product** approach keeps scope small, feedback fast, and ri
 
 ## Target MVP v0.1 (End of Week 2)
 
-> ** MVP Goal:** Desktop app/script: load a video → detect ball/rim → segment attempts → classify make/miss → write JSONL + MP4 with overlays.  
+> ** MVP Goal:** Desktop app/script: load a video → detect ball/rim → segment attempts → classify make/miss → write JSONL + MP4 with overlays.
 > **Target Accuracy:** ≥90% make/miss on your test clips.
 
 ---
@@ -137,3 +181,7 @@ The **Minimum Viable Product** approach keeps scope small, feedback fast, and ri
 ---
 
 ## Repository Structure
+
+```
+
+```
