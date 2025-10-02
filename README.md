@@ -1,13 +1,13 @@
-# ShotTracker — Project Roadmap
+# ShotTracker — Vision, Design, and Curreent Status
 
-**Last Updated:** 2025-09-29 (Local Time)
+**Last Updated:** 2025-10-1 (Local Time)
 
----
+## ShotTracker is a computer-vision pipeline that turns raw basketball video **attempt segments**, **make/miss outcomes**, and eventually **trajector metrics** (shot arc, apex, entry angle). The project is scoped to ship a desktop/CLI MVP first, then a small web dashboard, then a mobile app.
 
 ## Introduction
 
 This roadmap documents the full vision, technical plan, and reasoning behind the **ShotTracker** project.  
-I started this project as a learning tool to improve my SWE abilities, showing _what_ I will build and _why_ I built it this way.
+I started this project as a learning tool to improve my SWE abilities, showing _what_ I will build and _why_ I built it this way. I also document software engineering principles for my own learning.
 
 ---
 
@@ -44,7 +44,15 @@ Build a basketball shot tracking system that logs attempts, classifies make/miss
 
 1. Desktop prototype → 2) Web dashboard → 3) Mobile app (on-device or edge inference).
 
+## Why this Design?
+
+- **Reproducible Runs**: A single CLI (`run_pipeline.py`) with explicit flags produces the same outputs for the same inputs. This makes different model iterations and bug reproductions straightforward.
+- **Testable Stages**: Decode -> Sample -> Detect -> Event Logic -> Overlay -> Write Artificats. Each stage has clear inputs/outputs, so we can unit test logic without video I/O.
+- **Observable by Default**:
+
 ---
+
+**Documenting for my own learning purposes**
 
 ## Guiding Principles
 
