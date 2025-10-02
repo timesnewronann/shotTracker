@@ -82,10 +82,9 @@ source .venv/bin/activate
 pip install -r requirements.txt   # opencv-python, numpy, ultralytics (soon), etc.
 ```
 
-# 2) run a short clip with overlays
+## 2) run a short clip with overlays
 
 ```
-
 python scripts/run_pipeline.py \
  --video data/raw/trimmedJumper.mp4 \
  --out results/run_review \
@@ -95,6 +94,25 @@ python scripts/run_pipeline.py \
  --max-seconds 12
 
 ```
+
+---
+
+## CLI flags (what & why)
+
+- **`--video PATH`**
+  - Path to source video. We assert it opens early for clear errors
+- **`--out DIR`**
+  - All artifacts for the run live here. Makes runs differentiable and easy to archive
+- **`--overlay [flag]` and `--save-video` [flag]**
+  - Draw HUD on each processed frame and write overlay.mp4, overlay is optional so batch runs can stay fast
+- **`--every-seconds S or `--frame-stride N`**
+  - Sampling is expressed in human time ("every 0.2s") but stored as an integer stride (e.g., 5 frames @24fps). This keeps results timing-consistent across different fps sources.
+- **`--bootstrap-frames N`**
+  - Consume N warm-up frames before processing. Stabilizes models and avoids cold-start jitter (also where auto-ROI will bootsrap).
+- **`--max-seconds S`, `--max-frames N`**
+  - Hard throughput cap so experiments don't accidentally process entire sessions/games
+- **`--rim-roi x1,y1,x2,y2`**
+  - Manual overide for the hoop region. The default is a safe oversized top-half box (10%w, 0) -> (90%w, 50%h) to avoid missing the rim in early runs
 
 ---
 
