@@ -171,6 +171,11 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     if width == 0 or height == 0:
         raise RuntimeError("[Error] failed to read video dimensions")
 
+    # -- Downscale videos (keep aspect ratio) --
+    max_width = 1280  # for now, we will update to use CLI args.max_width
+    target_width = min(width, max_width)
+    print(f"[scale] target_width={target_width} (orig={width})")
+
     # -- Derive Stride from every-seconds (if provided) --
     if every_seconds is not None:
         # Keep around 1 frame every S seconds => Stride is about fps * S
@@ -192,11 +197,12 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
 
     # -- WRITE THE OVERLAY VIDEO INTO A FILE --
     writer = None
-    if overlay and (save_video if 'args' in globals() else True):
+    if overlay and save_video and writer is None:
         fourcc = cv.VideoWriter_fourcc(*"mp4v")
         # Keep playback not-too-fast when striding
         out_fps = max(5.0, fps / max(1, frame_stride))
-        writer = cv.VideoWriter(str(out_dir / "overlay.mp4"), fourcc, out_fps, (width, height))
+        height2, width2 = draw.shape[:2]
+        writer = cv.VideoWriter(str(out_dir / "overlay.mp4"), fourcc, out_fps, (width2, height2))
         # Error handling if the writer isn't opened
         if not writer.isOpened():
             raise RuntimeError("VideoWriter failed to open (codec/back-end issue).")
