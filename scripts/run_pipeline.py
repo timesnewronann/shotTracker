@@ -70,6 +70,18 @@ def draw_path(img, pts: List[Tuple[int, int]], tail: int = 40):
         x1, y1 = pts[i]
         cv.line(img, (x0, y0), (x1, y1), (255, 255, 255), 2)
 
+
+def resize_keep_aspect(frame, max_width, int):
+    height, width = frame.shape[:2]
+    if max_width is None or max_width <= 0 or width <= max_width:
+        return frame, 1.0
+    scale = max_width / float(width)
+    new_width = int(round(width * scale))
+    new_height = int(round(height * scale))
+    resized = cv.resize(frame, (new_width, new_height), interpolation=cv.INTER_AREA)
+
+    return resized, scale
+
 # ============= CLI ============
 # defines CLI and validates user intent
 
@@ -110,7 +122,6 @@ def get_parser():
                         help="Manual rim ROI if your detector doesn't output a rim class.")
     parser.add_argument("--max-width", type=int, default=1280,
                         help="Downscale frames so width <= max-width (maintains aspect ratio).")
-    
 
     return parser
 
