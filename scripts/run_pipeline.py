@@ -108,6 +108,9 @@ def get_parser():
                         help="Stop after about S seconds of processed video (combined with --max-frames; the smaller cap wins).")
     parser.add_argument("--rim-roi", type=str, metavar="x1,y1,x2,y2",
                         help="Manual rim ROI if your detector doesn't output a rim class.")
+    parser.add_argument("--max-width", type=int, default=1280,
+                        help="Downscale frames so width <= max-width (maintains aspect ratio).")
+    
 
     return parser
 
