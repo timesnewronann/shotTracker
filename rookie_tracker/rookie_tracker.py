@@ -110,8 +110,14 @@ def main():
         # draw trail (last TRAIL_LENGTH points)
         recent = centers[-TRAIL_LENGTH:]
 
+        # Draw a shot arc line
+        for i in range(1, len(recent)):
+            x1, y1 = recent[i - 1]
+            x2, y2 = recent[i]
+            cv.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 3)
+
         for (cx, cy) in recent:
-            cv.circle(frame, (int(cx), int(cy)), 4, (0, 255, 0), -1)
+            cv.circle(frame, (int(cx), int(cy)), 3, (0, 255, 0), -1)
 
         # Resized the 4k frame to 720 so that we can run it faster on my laptop
         display = cv.resize(frame, (1280, 720))
@@ -119,7 +125,7 @@ def main():
 
         if show_mask:
             mask_display = cv.resize(mask, (640, 360))
-            cv.imshow("Mask", mask)
+            cv.imshow("Mask", mask_display)
         key = cv.waitKey(1) & 0xFF
 
         # if we press q quit the program
