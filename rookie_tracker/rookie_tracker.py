@@ -9,7 +9,7 @@ LOW_ORANGE = (5, 100, 100)
 HIGH_ORANGE = (25, 255, 255)
 
 # Restrict the search for the ball to the hoop area/ avoid random oranges
-ROI = (1536, 0, 3840, 1620)
+ROI = (1536, 250, 3840, 1620)
 
 
 def detect_ball_center_stub(frame, roi=None):
@@ -76,6 +76,9 @@ def detect_ball_center_stub(frame, roi=None):
     cx = int(x) + x1
     cy = int(y) + y1
 
+    if cy < 300:
+        return None, None, mask
+
     return (cx, cy), int(radius), mask
 
 
@@ -100,12 +103,23 @@ def main():
 
         # if the center is found
         if center is not None:
-            # save the center to the list
-            centers.append(center)
-            centers = centers[-200:]
             cx, cy = center
-            cv.circle(frame, (cx, cy), max(radius, 6), (0, 255, 0), 2)
-            cv.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
+
+            if cy < 300:
+                center = None
+            else:
+                if len(centers) == 0:
+                    centers.append(center)
+                else:
+                    px, py = centers[-1]
+                    if abs(cx - px) < 250 and abs(cy - py) < 250:
+                        centers.append(center)
+            # save the center to the list
+            centers = centers[-200:]
+
+            if center is not None:
+                cv.circle(frame, (cx, cy), max(radius, 6), (0, 255, 0), 2)
+                cv.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
 
         # draw trail (last TRAIL_LENGTH points)
         recent = centers[-TRAIL_LENGTH:]
