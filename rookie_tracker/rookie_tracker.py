@@ -9,7 +9,7 @@ LOW_ORANGE = (5, 100, 100)
 HIGH_ORANGE = (25, 255, 255)
 
 # Restrict the search for the ball to the hoop area/ avoid random oranges
-ROI = None
+ROI = (1536, 0, 3840, 1620)
 
 
 def detect_ball_center_stub(frame, roi=None):
@@ -24,8 +24,13 @@ def detect_ball_center_stub(frame, roi=None):
     6. Pick "best" contour by filters (area + round-ish)
     7. Return center (cv, cy) in full-frame coordinates or None
     """
-    # frame size
-    x1, y1, x2, y2 = (0, 0, frame.shape[1], frame.shape[0]) if roi is None else roi
+    # Frame.shape -> (height, width)
+    HEIGHT, WIDTH = frame.shape[:2]
+
+    if roi is None:
+        x1, y1, x2, y2 = 0, 0, WIDTH, HEIGHT
+    else:
+        x1, y1, x2, y2 = roi
 
     # crop to ROI
     crop = frame[y1:y2, x1:x2]
@@ -41,7 +46,7 @@ def detect_ball_center_stub(frame, roi=None):
 
     # couldn't find good contours
     if not contours:
-        return None
+        return None, None, mask
 
     # best contours
     best = None
@@ -53,31 +58,25 @@ def detect_ball_center_stub(frame, roi=None):
         if area < 200 or area > 20000:
             continue
 
-        perimeter = cv.arcLength(c, True)
-        if perimeter == 0:
+        (x, y), radius = cv.minEnclosingCircle(c)
+        if radius < 5 or radius > 80:
             continue
 
-        circularity = 4 * np.pi * area / (perimeter * perimeter)  # 1. 0 is a perfect circle
-
-        if circularity < 0.2:
-            continue
-
-        score = area * circularity
+        # Simple score -> bigger and more compact circles
+        score = area / (radius * radius + 1e-6)
         if score > best_score:
             best_score = score
             best = c
 
-    # couldn't get a best contour
     if best is None:
-        return None
+        return None, None, mask
 
-    M = cv.moments(best)
-    if M["m00"] == 0:
-        return None
-    cx = int(M["m10"] / M["m00"]) + x1
-    cy = int(M["m01"] / M["m00"] + y1)
+    (x, y), radius = cv.minEnclosingCircle(best)
 
-    return (cx, cy)
+    cx = int(x) + x1
+    cy = int(y) + y1
+
+    return (cx, cy), int(radius), mask
 
 
 def main():
@@ -88,18 +87,24 @@ def main():
 
     centers = []
 
+    # used for toggling mask on and off
+    show_mask = False
+
     # go through each frame
     while True:
         ok, frame = capture.read()
         if not ok:
             break
 
-        center = detect_ball_center_stub(frame, ROI)
+        center, radius, mask = detect_ball_center_stub(frame, ROI)
 
         # if the center is found
         if center is not None:
             # save the center to the list
             centers.append(center)
+            cx, cy = center
+            cv.circle(frame, (cx, cy), max(radius, 6), (0, 255, 0), 2)
+            cv.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
 
         # draw trail (last TRAIL_LENGTH points)
         recent = centers[-TRAIL_LENGTH:]
@@ -107,12 +112,22 @@ def main():
         for (cx, cy) in recent:
             cv.circle(frame, (int(cx), int(cy)), 4, (0, 255, 0), -1)
 
-        cv.imshow("Rookie Tracker", frame)
+        # Resized the 4k frame to 720 so that we can run it faster on my laptop
+        display = cv.resize(frame, (1280, 720))
+        cv.imshow("Rookie Tracker", display)
+
+        if show_mask:
+            mask_display = cv.resize(mask, (640, 36))
+            cv.imshow("Mask", mask)
         key = cv.waitKey(1) & 0xFF
 
         # if we press q quit the program
         if key == ord("q"):
             break
+        elif key == ord("m"):
+            show_mask = not show_mask
+            if not show_mask:
+                cv.destroyWindow("Mask")
 
     capture.release()
     cv.destroyAllWindows()
