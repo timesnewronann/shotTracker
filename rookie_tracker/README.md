@@ -15,3 +15,11 @@
 - Show the frame
 
 3. Quit on Q
+
+## How to run the file
+
+Use the command
+
+```bash
+python rookie_tracker/rookie_tracker.py
+```

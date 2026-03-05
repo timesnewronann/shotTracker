@@ -70,6 +70,18 @@ def draw_path(img, pts: List[Tuple[int, int]], tail: int = 40):
         x1, y1 = pts[i]
         cv.line(img, (x0, y0), (x1, y1), (255, 255, 255), 2)
 
+
+def resize_keep_aspect(frame, max_width: int):
+    height, width = frame.shape[:2]
+    if max_width is None or max_width <= 0 or width <= max_width:
+        return frame, 1.0
+    scale = max_width / float(width)
+    new_width = int(round(width * scale))
+    new_height = int(round(height * scale))
+    resized = cv.resize(frame, (new_width, new_height), interpolation=cv.INTER_AREA)
+
+    return resized, scale
+
 # ============= CLI ============
 # defines CLI and validates user intent
 
@@ -108,6 +120,8 @@ def get_parser():
                         help="Stop after about S seconds of processed video (combined with --max-frames; the smaller cap wins).")
     parser.add_argument("--rim-roi", type=str, metavar="x1,y1,x2,y2",
                         help="Manual rim ROI if your detector doesn't output a rim class.")
+    parser.add_argument("--max-width", type=int, default=1280,
+                        help="Downscale frames so width <= max-width (maintains aspect ratio).")
 
     return parser
 
@@ -115,7 +129,7 @@ def get_parser():
 # Game loop - opens the game film, warms up subsystems, picks how often to sample plays, iterates through frames, draws visuals, and writes a box score at the end
 
 
-def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_frames, every_seconds, max_seconds, dry_run, save_video, write_frames, rim_roi_arg):
+def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_frames, every_seconds, max_seconds, dry_run, save_video, write_frames, rim_roi_arg, max_width):
     """
     Run a single pass over a video with a controllable sampling policy.
 
@@ -157,6 +171,16 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     if width == 0 or height == 0:
         raise RuntimeError("[Error] failed to read video dimensions")
 
+    # -- Downscale videos (keep aspect ratio) --
+    if max_width is None or max_width <= 0:
+        target_width = width
+    else:
+        target_width = min(width, max_width)
+
+    scale_out = target_width / float(width)
+    target_height = int(round(height * scale_out))
+    print(f"[scale] target={target_width}x{target_height}")
+
     # -- Derive Stride from every-seconds (if provided) --
     if every_seconds is not None:
         # Keep around 1 frame every S seconds => Stride is about fps * S
@@ -178,11 +202,13 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
 
     # -- WRITE THE OVERLAY VIDEO INTO A FILE --
     writer = None
-    if overlay and (save_video if 'args' in globals() else True):
-        fourcc = cv.VideoWriter_fourcc(*"mp4v")
-        # Keep playback not-too-fast when striding
-        out_fps = max(5.0, fps / max(1, frame_stride))
-        writer = cv.VideoWriter(str(out_dir / "overlay.mp4"), fourcc, out_fps, (width, height))
+    fourcc = cv.VideoWriter_fourcc(*"mp4v")
+    # Keep playback not-too-fast when striding
+    out_fps = max(5.0, fps / max(1, frame_stride))
+
+    if overlay and save_video:
+        writer = cv.VideoWriter(str(out_dir / "overlay.mp4"), fourcc,
+                                out_fps, (target_width, target_height))
         # Error handling if the writer isn't opened
         if not writer.isOpened():
             raise RuntimeError("VideoWriter failed to open (codec/back-end issue).")
@@ -195,6 +221,9 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
     if rim_roi_arg:
         rim_roi = parse_roi(rim_roi_arg)
         print(f"[ROI] Using manual rim ROI: {rim_roi}")
+        rim_roi_work = tuple(int(round(v * scale_out)) for v in rim_roi)
+        print(f"[ROI] Working ROI (scaled): {rim_roi_work}")
+
     else:
         # default to upper middle band
         pad = max(20, width // 10)
@@ -236,25 +265,32 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
             # overlay hook
             # draw = frame
 
+            # Resize once per processed frame (working coordinate space)
+            work, scale = resize_keep_aspect(frame, max_width)
+            rim_roi_frame = tuple(int(round(v * scale)) for v in rim_roi)
+
             # --- Ball stub detection + overlays ---
-            centers = detect_ball_centers_stub(frame)
+            centers = detect_ball_centers_stub(work)
             # choose the smallest circle or take the first one
             ball_c = centers[0] if centers else None
 
             # Track path history
-            # if "recent_centers" not in locals():
-            #     recent_centers = []
+            if ball_c is not None:
+                recent_centers.append(ball_c)
+                if len(recent_centers) > 200:
+                    recent_centers = recent_centers[-200:]
 
             if overlay:
                 # draw boxes, trails, angles, etc
                 # print(f"[overlay] drew annotations on frame {frame_index}")
-                draw = frame  # reuse original
-                draw_rim_roi(draw, rim_roi)
+                draw = work.copy()
+                draw_rim_roi(draw, rim_roi_frame)
                 if ball_c:
                     cv.circle(draw, ball_c, 6, (0, 0, 255), -1)
                 if recent_centers:
                     draw_path(draw, recent_centers)
-                cv.putText(draw, f"f={frame_index}", (10, height - 10),
+                draw_h = draw.shape[0]
+                cv.putText(draw, f"f={frame_index}", (10, draw_h - 10),
                            cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
                 # write after the overlays
@@ -262,7 +298,7 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
                     writer.write(draw)
 
             if write_frames:
-                cv.imwrite(str(frames_dir / f"frame_{frame_index:06d}.jpg"), frame)
+                cv.imwrite(str(frames_dir / f"frame_{frame_index:06d}.jpg"), work)
 
             print(f"[process] frame {frame_index}")
             frames_processed += 1
@@ -281,6 +317,9 @@ def detect(video_path, out_dir, overlay, bootstrap_frames, frame_stride, max_fra
         "out": str(out_dir.resolve()),  # the out_dir
         "width": int(width),  # video width
         "height": int(height),  # video height
+        "target_width": int(target_width),
+        "target_height": int(target_height),
+        "scale_out": float(scale_out),
         "fps": float(fps),
         "total_frames_meta": int(cap.get(cv.CAP_PROP_FRAME_COUNT) or -1),
         "overlay": bool(overlay),
@@ -341,11 +380,12 @@ def main():
         print(f"  save_video={args.save_video}")
         print(f"  write_frames={args.write_frames}")
         print(f"  rim_roi={args.rim_roi}")
+        print(f"  max_width={args.max_width}")
         return
 
     # Only run detect if not dry-run
     detect(args.video, args.out, args.overlay, args.bootstrap_frames,
-           args.frame_stride, args.max_frames, args.every_seconds, args.max_seconds, args.dry_run, args.save_video, args.write_frames, args.rim_roi)
+           args.frame_stride, args.max_frames, args.every_seconds, args.max_seconds, args.dry_run, args.save_video, args.write_frames, args.rim_roi, args.max_width)
 
 
 if __name__ == "__main__":

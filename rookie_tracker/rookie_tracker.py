@@ -47,7 +47,7 @@ def main():
         if key == ord("q"):
             break
 
-    cap.release()
+    capture.release()
     cv.destroyAllWindows()
 
 
