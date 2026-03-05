@@ -102,6 +102,7 @@ def main():
         if center is not None:
             # save the center to the list
             centers.append(center)
+            centers = centers[-200:]
             cx, cy = center
             cv.circle(frame, (cx, cy), max(radius, 6), (0, 255, 0), 2)
             cv.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
@@ -117,7 +118,7 @@ def main():
         cv.imshow("Rookie Tracker", display)
 
         if show_mask:
-            mask_display = cv.resize(mask, (640, 36))
+            mask_display = cv.resize(mask, (640, 360))
             cv.imshow("Mask", mask)
         key = cv.waitKey(1) & 0xFF
 
