@@ -23,3 +23,17 @@ Use the command
 ```bash
 python rookie_tracker/rookie_tracker.py
 ```
+
+## Current Pipeline
+
+Frame
+|
+ROI crop
+|
+HSV Threshold
+|
+mask cleanup
+|
+contour filtering
+|
+ball center + radius
