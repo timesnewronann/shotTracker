@@ -37,3 +37,9 @@ mask cleanup
 contour filtering
 |
 ball center + radius
+
+## How this file works
+
+1. We find contours in the mask to identify an orange blob (the basketball) in the current frame.
+2. Then we select the blob that is the most like a basketball -> compute it's center -> store the centers across the frames
+   The centers create the tracking

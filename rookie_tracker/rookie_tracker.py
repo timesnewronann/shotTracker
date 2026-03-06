@@ -1,6 +1,8 @@
 import cv2 as cv
 import numpy as np
 
+
+# CONSTANTS
 VIDEO_PATH = "data/raw/trimmedJumper.mp4"
 TRAIL_LENGTH = 30
 
@@ -10,6 +12,34 @@ HIGH_ORANGE = (25, 255, 255)
 
 # Restrict the search for the ball to the hoop area/ avoid random oranges
 ROI = (1536, 450, 3840, 1620)
+SEARCH_MARGIN = 250
+
+# Helper function to build a local ROI
+"""
+Starts with main ROI Boundaries
+Shrink the boundaries around the previous ball center
+Doesn't allow the search to go outside of the main ROI
+"""
+
+
+def make_search_roi(last_center, base_roi, frame_shape, margin):
+    frame_height, frame_width = frame_shape[:2]
+    base_x1, base_y1, base_x2, base_y2 = base_roi
+
+    if last_center is None:
+        return base_roi
+
+    cx, cy = last_center
+
+    x1 = max(base_x1, cx - margin)
+    y1 = max(base_y1, cy - margin)
+    x2 = min(base_x2, cx + margin)
+    y2 = min(base_y2, cy + margin)
+
+    return (x1, y1, x2, y2)
+
+
+# Helper function to detect the ball center
 
 
 def detect_ball_center_stub(frame, roi=None):
@@ -91,6 +121,9 @@ def main():
 
     centers = []
 
+    # used in helper function
+    last_center = None
+
     # track misses
     misses = 0
 
@@ -103,28 +136,60 @@ def main():
         if not ok:
             break
 
-        center, radius, mask = detect_ball_center_stub(frame, ROI)
+        search_roi = make_search_roi(last_center, ROI, frame.shape, SEARCH_MARGIN)
+        center, radius, mask = detect_ball_center_stub(frame, search_roi)
+
+        # Draw the active search region for debugging purposes
+        sx1, sy1, sx2, sy2 = search_roi
+        cv.rectangle(frame, (sx1, sy1), (sx2, sy2), (255, 0, 0), 2)
+
+        accepted_center = None
 
         # if the center is found
         if center is not None:
             cx, cy = center
 
+            # ceiling filter
             if cy >= 300:
                 if len(centers) == 0:
-                    centers.append(center)
+                    accepted_center = center
+                    # centers.append(center)
                 else:
                     px, py = centers[-1]
-                    if abs(cx - px) < 250 and abs(cy - py) < 250:
+                    if abs(cx - px) < 350 and abs(cy - py) < 350:
                         # draw the trail
-                        centers.append(center)
+                        # centers.append(center)
+                        # last_center = center
+                        accepted_center = center
 
-            centers = centers[-200:]
+            if accepted_center is not None:
+                centers.append(accepted_center)
+                centers = centers[-200:]
+                last_center = accepted_center
+                misses = 0
 
-            if center is not None and radius is not None:
-                print("detected", center, "r=", radius, "misses=", misses, "centers=", len(centers))
-                cx, cy = center
+                cx, cy = accepted_center
                 cv.circle(frame, (cx, cy), max(radius, 6), (0, 255, 0), 2)
                 cv.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
+
+                print("detected", center, "r=", radius, "misses=", misses, "centers=", len(centers))
+            else:
+                misses += 1
+                if misses > 10:
+                    last_center = None
+                    
+            # centers = centers[-200:]
+
+            # # successful center detection block
+            # if center is not None and radius is not None:
+            #     print("detected", center, "r=", radius, "misses=", misses, "centers=", len(centers))
+            #     cx, cy = center
+            #     cv.circle(frame, (cx, cy), max(radius, 6), (0, 255, 0), 2)
+            #     cv.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
+            # else:
+            #     misses += 1
+            #     if misses > 10:
+            #         last_center = None
 
         # draw trail (last TRAIL_LENGTH points)
         recent = centers[-TRAIL_LENGTH:]
